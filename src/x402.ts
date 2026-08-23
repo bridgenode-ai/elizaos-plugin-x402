@@ -50,10 +50,11 @@ export function getX402Config(
 		getSetting?: (key: string) => string | number | boolean | null | undefined;
 	} | null = null,
 ): X402Config {
-	const get = (key: string): string | undefined =>
-		typeof settings?.getSetting?.(key) === "string"
-			? (settings.getSetting(key) as string)
-			: process.env[key];
+	const get = (key: string): string | undefined => {
+		const v = settings?.getSetting?.(key);
+		if (v === undefined || v === null) return process.env[key];
+		return String(v);
+	};
 
 	const privateKey = get("SOLANA_PRIVATE_KEY");
 	if (!privateKey) {
