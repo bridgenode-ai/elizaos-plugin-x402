@@ -1,0 +1,65 @@
+{
+  "name": "@bridgenode/plugin-x402",
+  "version": "0.1.0",
+  "description": "ElizaOS plugin for pay-per-request LLM inference via x402 on Solana USDC - no API keys, no accounts",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "elizaos",
+    "x402",
+    "solana",
+    "ai",
+    "inference",
+    "llm",
+    "payment",
+    "usdc",
+    "pay-per-request"
+  ],
+  "license": "MIT-0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bridgenode-ai/elizaos-plugin-x402.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@x402/core": "^2.23.0",
+    "@x402/svm": "^2.23.0",
+    "@x402/fetch": "^2.23.0",
+    "@ai-sdk/openai-compatible": "^3.0.35",
+    "ai": "^7.0.0",
+    "@solana/kit": "^8.0.0",
+    "bs58": "^6.0.0"
+  },
+  "peerDependencies": {
+    "@elizaos/core": "^1.0.0"
+  },
+  "devDependencies": {
+    "@elizaos/core": "^1.7.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  }
+}
