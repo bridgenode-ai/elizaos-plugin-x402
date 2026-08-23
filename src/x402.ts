@@ -83,11 +83,15 @@ export function getX402Config(
 export async function createX402Fetch(config: X402Config): Promise<typeof fetch> {
 	const signer = await createSignerFromPrivateKey(config.privateKey);
 	const scheme = new ExactSvmScheme(signer, { rpcUrl: config.rpcUrl });
+	// S2: user picks the cap (BRIDGENODE_MAX_USDC_PER_TX, default $1).
+	// 0 / negative → spend controls fully disabled (user's explicit choice).
+	const spendControls =
+		config.maxUsdcPerTx > 0
+			? { maxAmountPerPayment: String(config.maxUsdcPerTx) }
+			: false;
 	const client = x402Client.fromConfig({
 		schemes: [{ network: SOLANA_MAINNET_CAIP2, client: scheme }],
-		spendControls: {
-			maxAmountPerPayment: String(config.maxUsdcPerTx),
-		},
+		spendControls,
 	});
 	return wrapFetchWithPayment(fetch, client);
 }

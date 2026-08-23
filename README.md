@@ -46,6 +46,14 @@ Set the environment variables (see `.env.example`):
 > The wallet must have a USDC ATA (first USDC transfer auto-creates it) and a
 > small SOL balance is not required — BridgeNode sponsors gas fees.
 
+## Spend cap
+
+`BRIDGENODE_MAX_USDC_PER_TX` limits how much a single inference request can
+cost (default `1` USD). Set it to `0` to fully disable the cap (not
+recommended). The cap is enforced client-side before signing any payment
+transaction. If a request would exceed the cap, the payment is aborted and an
+error is logged.
+
 ## Models
 
 Live model list & pricing: <https://bridgenode.cc/v1/models>
