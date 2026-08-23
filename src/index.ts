@@ -2,6 +2,7 @@ import type { Plugin } from "@elizaos/core";
 import { ModelType } from "@elizaos/core";
 
 import { createTextHandler } from "./provider.js";
+import { getPriceEstimate } from "./actions/getPriceEstimate.js";
 
 /**
  * @bridgenode/plugin-x402 — pay-per-request LLM inference via x402 on Solana USDC.
@@ -26,7 +27,7 @@ export const bridgenodePlugin: Plugin = {
 		[ModelType.TEXT_LARGE]: createTextHandler("large"),
 	},
 	// 2.6: actions — getPriceEstimate (live /v1/models pricing)
-	actions: [],
+	actions: [getPriceEstimate],
 	providers: [],
 	services: [],
 };
