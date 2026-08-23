@@ -1,4 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { elizaLogger } from "@elizaos/core";
 import type {
 	GenerateTextParams,
 	IAgentRuntime,
@@ -6,6 +7,7 @@ import type {
 	TextStreamResult,
 } from "@elizaos/core";
 import { generateText, streamText } from "ai";
+import { APICallError, RetryError } from "ai";
 
 import {
 	createX402Fetch,
@@ -56,6 +58,39 @@ async function getProviderBundle(runtime: IAgentRuntime): Promise<ProviderBundle
 	return cached;
 }
 
+function classifyError(err: unknown): {
+	kind: "rate-limit" | "server" | "bad-request" | "payment" | "other";
+	status?: number;
+	message: string;
+} {
+	const message = err instanceof Error ? err.message : String(err);
+	// x402/SDK payment-layer failures bubble up as plain Errors with HTTP status
+	// in the message; AI SDK wraps upstream status codes in APICallError.
+	const status =
+		err instanceof APICallError
+			? (err.statusCode as number | undefined)
+			: undefined;
+	if (status === 429 || /rate.?limit|429/i.test(message)) {
+		return { kind: "rate-limit", status: 429, message };
+	}
+	if (status !== undefined && status >= 500) {
+		return { kind: "server", status, message };
+	}
+	if (status === 400 || /request.?hash|400/i.test(message)) {
+		return { kind: "bad-request", status: 400, message };
+	}
+	if (/402|PAYMENT|spend|ATA/i.test(message)) {
+		return { kind: "payment", message };
+	}
+	return { kind: "other", message };
+}
+
+function isRetryable(kind: "rate-limit" | "server" | "bad-request" | "payment" | "other"): boolean {
+	// 429/5xx retryable (AI SDK default maxRetries=2 also applies); 400 hash
+	// mismatch and payment failures are terminal — new payment is required.
+	return kind === "rate-limit" || kind === "server";
+}
+
 function toTextStreamResult(
 	result: Awaited<ReturnType<typeof streamText>>,
 ): TextStreamResult {
@@ -93,22 +128,47 @@ export function createTextHandler(tier: "small" | "large") {
 			tier === "large" ? bundle.modelLarge : bundle.modelSmall,
 		);
 
-		if (params.stream) {
-			const result = await streamText({
+		try {
+			if (params.stream) {
+				const result = await streamText({
+					model,
+					prompt: params.prompt,
+					maxOutputTokens: params.maxTokens,
+					temperature: params.temperature,
+				});
+				return toTextStreamResult(result);
+			}
+
+			const result = await generateText({
 				model,
 				prompt: params.prompt,
 				maxOutputTokens: params.maxTokens,
 				temperature: params.temperature,
 			});
-			return toTextStreamResult(result);
+			return result.text;
+		} catch (err) {
+			const cls = classifyError(err);
+			if (cls.kind === "payment") {
+				elizaLogger.error(
+					`[bridgenode] payment failure: ${cls.message}`,
+				);
+			} else if (isRetryable(cls.kind)) {
+				elizaLogger.warn(
+					`[bridgenode] retryable ${cls.kind} (status=${cls.status}): ${cls.message}`,
+				);
+			} else {
+				elizaLogger.error(
+					`[bridgenode] ${cls.kind}${cls.status ? ` (status=${cls.status})` : ""}: ${cls.message}`,
+				);
+			}
+			// AI SDK already retried 429/5xx (default maxRetries=2) before we got
+			// here; x402 wrapper retried 402. What remains is terminal.
+			if (err instanceof RetryError) {
+				throw new Error(
+					`@bridgenode/plugin-x402: provider retries exhausted — ${cls.message}`,
+				);
+			}
+			throw err;
 		}
-
-		const result = await generateText({
-			model,
-			prompt: params.prompt,
-			maxOutputTokens: params.maxTokens,
-			temperature: params.temperature,
-		});
-		return result.text;
 	};
 }
