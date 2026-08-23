@@ -54,7 +54,8 @@
   "devDependencies": {
     "@elizaos/core": "^1.7.2",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "@types/node": "^24.0.0"
   },
   "scripts": {
     "build": "tsc",
