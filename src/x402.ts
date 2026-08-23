@@ -47,11 +47,13 @@ export interface X402Config {
 
 export function getX402Config(
 	settings: {
-		getSetting?: (key: string) => string | undefined;
+		getSetting?: (key: string) => string | number | boolean | null | undefined;
 	} | null = null,
 ): X402Config {
 	const get = (key: string): string | undefined =>
-		settings?.getSetting?.(key) ?? process.env[key];
+		typeof settings?.getSetting?.(key) === "string"
+			? (settings.getSetting(key) as string)
+			: process.env[key];
 
 	const privateKey = get("SOLANA_PRIVATE_KEY");
 	if (!privateKey) {

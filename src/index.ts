@@ -1,7 +1,7 @@
 import type { Plugin } from "@elizaos/core";
 import { ModelType } from "@elizaos/core";
 
-import { handleTextGeneration } from "./provider.js";
+import { createTextHandler } from "./provider.js";
 
 /**
  * @bridgenode/plugin-x402 — pay-per-request LLM inference via x402 on Solana USDC.
@@ -22,8 +22,8 @@ export const bridgenodePlugin: Plugin = {
 	// (1.x: MEDIUM is an alias of TEXT_LARGE — not registered separately.
 	// BridgeNode has no embedding models (checked 08-23) — TEXT_EMBEDDING skipped.)
 	models: {
-		[ModelType.TEXT_SMALL]: handleTextGeneration,
-		[ModelType.TEXT_LARGE]: handleTextGeneration,
+		[ModelType.TEXT_SMALL]: createTextHandler("small"),
+		[ModelType.TEXT_LARGE]: createTextHandler("large"),
 	},
 	// 2.6: actions — getPriceEstimate (live /v1/models pricing)
 	actions: [],
