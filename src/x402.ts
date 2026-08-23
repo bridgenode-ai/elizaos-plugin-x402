@@ -3,16 +3,23 @@ import {
 	getBase58Encoder,
 	type KeyPairSigner,
 } from "@solana/kit";
+import { x402Client } from "@x402/core/client";
+import { wrapFetchWithPayment } from "@x402/fetch";
+import {
+	ExactSvmScheme,
+	SOLANA_MAINNET_CAIP2,
+} from "@x402/svm";
 
 /**
  * x402 helpers (Phase 2.3–2.4).
  *
  * 2.3: SOLANA_PRIVATE_KEY (base58) → @solana/kit KeyPairSigner.
+ * 2.4: x402Client + ExactSvmScheme (Solana mainnet, USDC) + wrapFetchWithPayment
+ *      + spend cap (S2: BRIDGENODE_MAX_USDC_PER_TX, default $1).
+ *
  * Conversion boundary: eliza's @solana/web3.js v1 Keypair is NOT used —
  * the x402 SDK and this plugin speak @solana/kit (v2) types, so the signer
  * must be created via createKeyPairSignerFromBytes (async, Web Crypto).
- *
- * 2.4 (next): x402Client + ExactSvmScheme + wrapFetchWithPayment.
  */
 
 /**
@@ -62,4 +69,23 @@ export function getX402Config(
 			get("BRIDGENODE_MAX_USDC_PER_TX") ?? "1",
 		),
 	};
+}
+
+// ── x402 client (2.4) ──────────────────────────────────────────────────
+
+/**
+ * Build a fetch wrapper that automatically pays x402 402 challenges:
+ * 402 → sign → retry with PAYMENT-SIGNATURE. Spend cap applied per payment
+ * (S2; default $1 — user configurable via BRIDGENODE_MAX_USDC_PER_TX).
+ */
+export async function createX402Fetch(config: X402Config): Promise<typeof fetch> {
+	const signer = await createSignerFromPrivateKey(config.privateKey);
+	const scheme = new ExactSvmScheme(signer, { rpcUrl: config.rpcUrl });
+	const client = x402Client.fromConfig({
+		schemes: [{ network: SOLANA_MAINNET_CAIP2, client: scheme }],
+		spendControls: {
+			maxAmountPerPayment: String(config.maxUsdcPerTx),
+		},
+	});
+	return wrapFetchWithPayment(fetch, client);
 }
