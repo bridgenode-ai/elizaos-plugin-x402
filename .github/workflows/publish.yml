@@ -37,5 +37,5 @@ jobs:
           if npm view "$PKG_NAME@$PKG_VER" version >/dev/null 2>&1; then
             echo "Version $PKG_VER of $PKG_NAME already published — skipping"
           else
-            npm publish --provenance
+            npm publish --provenance --access public
           fi

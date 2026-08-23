@@ -32,6 +32,9 @@
     "pay-per-request"
   ],
   "license": "MIT-0",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/bridgenode-ai/elizaos-plugin-x402.git"
