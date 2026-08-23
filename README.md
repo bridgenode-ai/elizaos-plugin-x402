@@ -39,7 +39,9 @@ Set the environment variables (see `.env.example`):
 | `SOLANA_PRIVATE_KEY` | ✅ | — | Agent wallet private key (base58) |
 | `SOLANA_RPC_URL` | ❌ | mainnet-beta | Solana RPC endpoint |
 | `BRIDGENODE_BASE_URL` | ❌ | `https://bridgenode.cc/v1` | BridgeNode endpoint |
-| `BRIDGENODE_MAX_USDC_PER_TX` | ❌ | `$1` | Max USDC per transaction |
+| `BRIDGENODE_MAX_USDC_PER_TX` | ❌ | `1` | Max USDC per transaction (safety cap) |
+| `BRIDGENODE_MODEL_SMALL` | ❌ | `deepseek-v4-flash` | Model for `TEXT_SMALL` |
+| `BRIDGENODE_MODEL_LARGE` | ❌ | `glm-5.2` | Model for `TEXT_LARGE` |
 
 > The wallet must have a USDC ATA (first USDC transfer auto-creates it) and a
 > small SOL balance is not required — BridgeNode sponsors gas fees.
