@@ -1,0 +1,41 @@
+name: Publish to npm (OIDC)
+
+# OIDC Trusted Publishing — be tokeno. Repo VIEŠAS, todėl npm provenance
+# (sigstore) GALIMAS (privatus repo → E422 pamoka 08-23; čia ne tas atvejis).
+# Trigger: tag `v*` (release-please arba rankinis `git tag v0.1.0 && push`).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write  # OIDC — npm provenance (sigstore)
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: "24"  # npm 11+ — OIDC Trusted Publishing
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Upgrade npm (OIDC support)
+        run: npm install -g npm@latest
+
+      - name: Publish (skip if version already published)
+        run: |
+          npm ci
+          npm run build
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VER=$(node -p "require('./package.json').version")
+          if npm view "$PKG_NAME@$PKG_VER" version >/dev/null 2>&1; then
+            echo "Version $PKG_VER of $PKG_NAME already published — skipping"
+          else
+            npm publish --provenance
+          fi
