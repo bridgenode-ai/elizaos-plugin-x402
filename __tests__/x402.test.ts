@@ -82,6 +82,12 @@ describe("parseMaxUsdcPerTx (fail-closed spend cap)", () => {
 		expect(parseMaxUsdcPerTx("0")).toBe(0);
 	});
 
+	it("rejects non-canonical zero values (only string \"0\" disables)", () => {
+		for (const bad of ["-0", "+0", "00", "0.0", "0e999", "0x0", "1e-324"]) {
+			expect(() => parseMaxUsdcPerTx(bad), bad).toThrow(/> 0/);
+		}
+	});
+
 	it("rejects non-numeric values instead of silently disabling", () => {
 		expect(() => parseMaxUsdcPerTx("one")).toThrow(/finite number/);
 		expect(() => parseMaxUsdcPerTx("NaN")).toThrow(/finite number/);
@@ -89,7 +95,7 @@ describe("parseMaxUsdcPerTx (fail-closed spend cap)", () => {
 	});
 
 	it("rejects negative values (only canonical 0 disables)", () => {
-		expect(() => parseMaxUsdcPerTx("-1")).toThrow(/>= 0/);
-		expect(() => parseMaxUsdcPerTx("-0.5")).toThrow(/>= 0/);
+		expect(() => parseMaxUsdcPerTx("-1")).toThrow(/> 0/);
+		expect(() => parseMaxUsdcPerTx("-0.5")).toThrow(/> 0/);
 	});
 });

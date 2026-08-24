@@ -78,10 +78,12 @@ export function getX402Config(
  * Parse BRIDGENODE_MAX_USDC_PER_TX fail-closed (S2).
  *
  * - unset / blank → documented default $1 (cap stays ON)
- * - malformed (non-finite / non-numeric, e.g. "one") → throws — never silently
- *   disables the cap on a configuration typo
- * - negative → throws (only the explicit canonical "0" disables the cap)
- * - "0" → 0 (cap disabled — documented canonical value)
+ * - ONLY the canonical string "0" disables the cap
+ * - any other value that parses or underflows to zero (e.g. "-0", "+0",
+ *   "00", "0.0", "0e999", "0x0", "1e-324") → throws — a configuration
+ *   typo must never silently disable the payment limit
+ * - malformed (non-finite / non-numeric, e.g. "one") → throws
+ * - negative → throws
  */
 export function parseMaxUsdcPerTx(raw: string | undefined): number {
 	const value =
@@ -89,15 +91,23 @@ export function parseMaxUsdcPerTx(raw: string | undefined): number {
 	if (value === "") {
 		return 1; // unset / blank → default $1
 	}
+	// Only the canonical string "0" may disable spend controls. Everything
+	// else that parses or underflows to zero is malformed → fail closed.
+	if (value === "0") {
+		return 0;
+	}
 	const parsed = Number(value);
 	if (!Number.isFinite(parsed)) {
 		throw new Error(
 			`BRIDGENODE_MAX_USDC_PER_TX must be a finite number (got "${raw}")`,
 		);
 	}
-	if (parsed < 0) {
+	// Catches negative values AND non-canonical zeros: `parsed <= 0` is true
+	// for "-0", "+0", "00", "0.0", "0e999", "0x0", "1e-324" etc. (note
+	// "-0 < 0" is false in JS, so a plain `< 0` check would miss it).
+	if (parsed <= 0) {
 		throw new Error(
-			`BRIDGENODE_MAX_USDC_PER_TX must be >= 0 (got "${raw}")`,
+			`BRIDGENODE_MAX_USDC_PER_TX must be > 0 (or exactly "0" to disable), got "${raw}"`,
 		);
 	}
 	return parsed;
