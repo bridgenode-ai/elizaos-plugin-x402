@@ -68,10 +68,39 @@ export function getX402Config(
 		rpcUrl:
 			get("SOLANA_RPC_URL") ?? "https://api.mainnet-beta.solana.com",
 		baseUrl: get("BRIDGENODE_BASE_URL") ?? "https://bridgenode.cc/v1",
-		maxUsdcPerTx: Number(
-			get("BRIDGENODE_MAX_USDC_PER_TX") ?? "1",
+		maxUsdcPerTx: parseMaxUsdcPerTx(
+			get("BRIDGENODE_MAX_USDC_PER_TX"),
 		),
 	};
+}
+
+/**
+ * Parse BRIDGENODE_MAX_USDC_PER_TX fail-closed (S2).
+ *
+ * - unset / blank → documented default $1 (cap stays ON)
+ * - malformed (non-finite / non-numeric, e.g. "one") → throws — never silently
+ *   disables the cap on a configuration typo
+ * - negative → throws (only the explicit canonical "0" disables the cap)
+ * - "0" → 0 (cap disabled — documented canonical value)
+ */
+export function parseMaxUsdcPerTx(raw: string | undefined): number {
+	const value =
+		raw === undefined || raw === null ? "" : String(raw).trim();
+	if (value === "") {
+		return 1; // unset / blank → default $1
+	}
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed)) {
+		throw new Error(
+			`BRIDGENODE_MAX_USDC_PER_TX must be a finite number (got "${raw}")`,
+		);
+	}
+	if (parsed < 0) {
+		throw new Error(
+			`BRIDGENODE_MAX_USDC_PER_TX must be >= 0 (got "${raw}")`,
+		);
+	}
+	return parsed;
 }
 
 // ── x402 client (2.4) ──────────────────────────────────────────────────
@@ -85,7 +114,9 @@ export async function createX402Fetch(config: X402Config): Promise<typeof fetch>
 	const signer = await createSignerFromPrivateKey(config.privateKey);
 	const scheme = new ExactSvmScheme(signer, { rpcUrl: config.rpcUrl });
 	// S2: user picks the cap (BRIDGENODE_MAX_USDC_PER_TX, default $1).
-	// 0 / negative → spend controls fully disabled (user's explicit choice).
+	// Only an explicit canonical 0 disables spend controls — getX402Config
+	// validates the value fail-closed, so malformed input throws instead of
+	// silently disabling the payment limit.
 	const spendControls =
 		config.maxUsdcPerTx > 0
 			? { maxAmountPerPayment: String(config.maxUsdcPerTx) }

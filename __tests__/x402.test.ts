@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createSignerFromPrivateKey, getX402Config } from "../src/x402.js";
+import {
+	createSignerFromPrivateKey,
+	getX402Config,
+	parseMaxUsdcPerTx,
+} from "../src/x402.js";
 
 // Deterministic valid 64-byte base58 keypair (generated locally 08-23, not a live wallet)
 const TEST_PRIVATE_KEY =
@@ -55,5 +59,37 @@ describe("getX402Config", () => {
 		expect(cfg.rpcUrl).toBe("https://custom.rpc");
 		expect(cfg.baseUrl).toBe("https://custom.base/");
 		expect(cfg.maxUsdcPerTx).toBe(2.5);
+	});
+});
+
+describe("parseMaxUsdcPerTx (fail-closed spend cap)", () => {
+	it("defaults to 1 when unset", () => {
+		expect(parseMaxUsdcPerTx(undefined)).toBe(1);
+		expect(parseMaxUsdcPerTx(null as unknown as undefined)).toBe(1);
+	});
+
+	it("defaults to 1 for blank / whitespace (never disables on blank)", () => {
+		expect(parseMaxUsdcPerTx("")).toBe(1);
+		expect(parseMaxUsdcPerTx("   ")).toBe(1);
+	});
+
+	it("accepts a valid positive cap", () => {
+		expect(parseMaxUsdcPerTx("2.5")).toBe(2.5);
+		expect(parseMaxUsdcPerTx(" 3 ")).toBe(3);
+	});
+
+	it("allows explicit canonical 0 to disable the cap", () => {
+		expect(parseMaxUsdcPerTx("0")).toBe(0);
+	});
+
+	it("rejects non-numeric values instead of silently disabling", () => {
+		expect(() => parseMaxUsdcPerTx("one")).toThrow(/finite number/);
+		expect(() => parseMaxUsdcPerTx("NaN")).toThrow(/finite number/);
+		expect(() => parseMaxUsdcPerTx("Infinity")).toThrow(/finite number/);
+	});
+
+	it("rejects negative values (only canonical 0 disables)", () => {
+		expect(() => parseMaxUsdcPerTx("-1")).toThrow(/>= 0/);
+		expect(() => parseMaxUsdcPerTx("-0.5")).toThrow(/>= 0/);
 	});
 });

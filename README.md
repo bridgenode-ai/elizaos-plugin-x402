@@ -68,9 +68,15 @@ Or set the environment variables (see `.env.example`):
 ## Spend cap
 
 `BRIDGENODE_MAX_USDC_PER_TX` limits how much a single inference request can cost
-(default `1` USD). Set it to `0` to fully disable the cap (not recommended). The
-cap is enforced client-side before signing any payment transaction. If a request
-would exceed the cap, the payment is aborted and an error is logged.
+(default `1` USD). Set it to the canonical value `0` to fully disable the cap
+(not recommended). The cap is enforced client-side before signing any payment
+transaction. If a request would exceed the cap, the payment is aborted and an
+error is logged.
+
+Validation is **fail-closed**: a blank, non-numeric (`one`), `NaN`/`Infinity`,
+or negative value is rejected with an error at config load — a configuration
+typo can never silently disable the payment limit. Only an explicit `0`
+disables it.
 
 ## Models
 
