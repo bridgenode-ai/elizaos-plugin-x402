@@ -82,6 +82,26 @@ describe("parseMaxUsdcPerTx (fail-closed spend cap)", () => {
 		expect(parseMaxUsdcPerTx("0")).toBe(0);
 	});
 
+	it("rejects whitespace-wrapped zeros (only exact \"0\" disables)", () => {
+		// Tab/newline/NBSP-wrapped "0" must NOT disable spend controls —
+		// they are not the canonical string "0" and fail closed instead.
+		for (const wrapped of [
+			" 0 ",
+			" 0",
+			"0 ",
+			"\t0",
+			"0\t",
+			"\n0\n",
+			"\u00A00", // NBSP-wrapped
+			"0\u00A0",
+			"\u00A0 0 \u00A0",
+		]) {
+			expect(() => parseMaxUsdcPerTx(wrapped), JSON.stringify(wrapped)).toThrow(
+				/> 0/,
+			);
+		}
+	});
+
 	it("rejects non-canonical zero values (only string \"0\" disables)", () => {
 		for (const bad of ["-0", "+0", "00", "0.0", "0e999", "0x0", "1e-324"]) {
 			expect(() => parseMaxUsdcPerTx(bad), bad).toThrow(/> 0/);

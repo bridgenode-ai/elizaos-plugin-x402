@@ -78,7 +78,9 @@ export function getX402Config(
  * Parse BRIDGENODE_MAX_USDC_PER_TX fail-closed (S2).
  *
  * - unset / blank → documented default $1 (cap stays ON)
- * - ONLY the canonical string "0" disables the cap
+ * - ONLY the exact canonical string "0" (untrimmed) disables the cap;
+ *   whitespace-wrapped zeros (" 0 ", tab/newline-wrapped, NBSP-wrapped)
+ *   are NOT the canonical "0" → they fail closed below
  * - any other value that parses or underflows to zero (e.g. "-0", "+0",
  *   "00", "0.0", "0e999", "0x0", "1e-324") → throws — a configuration
  *   typo must never silently disable the payment limit
@@ -86,15 +88,17 @@ export function getX402Config(
  * - negative → throws
  */
 export function parseMaxUsdcPerTx(raw: string | undefined): number {
-	const value =
-		raw === undefined || raw === null ? "" : String(raw).trim();
+	const rawString =
+		raw === undefined || raw === null ? "" : String(raw);
+	// Explicit-disable check on the UNTRIMMED string: only the exact
+	// canonical "0" may disable spend controls. Wrapped zeros fall through
+	// to numeric parsing and are rejected by `parsed <= 0` below.
+	if (rawString === "0") {
+		return 0;
+	}
+	const value = rawString.trim();
 	if (value === "") {
 		return 1; // unset / blank → default $1
-	}
-	// Only the canonical string "0" may disable spend controls. Everything
-	// else that parses or underflows to zero is malformed → fail closed.
-	if (value === "0") {
-		return 0;
 	}
 	const parsed = Number(value);
 	if (!Number.isFinite(parsed)) {
@@ -102,9 +106,10 @@ export function parseMaxUsdcPerTx(raw: string | undefined): number {
 			`BRIDGENODE_MAX_USDC_PER_TX must be a finite number (got "${raw}")`,
 		);
 	}
-	// Catches negative values AND non-canonical zeros: `parsed <= 0` is true
-	// for "-0", "+0", "00", "0.0", "0e999", "0x0", "1e-324" etc. (note
-	// "-0 < 0" is false in JS, so a plain `< 0` check would miss it).
+	// Catches negative values AND non-canonical zeros (including wrapped
+	// zeros that trimmed to "0"): `parsed <= 0` is true for "-0", "+0",
+	// "00", "0.0", "0e999", "0x0", "1e-324", " 0 " etc. (note "-0 < 0"
+	// is false in JS, so a plain `< 0` check would miss it).
 	if (parsed <= 0) {
 		throw new Error(
 			`BRIDGENODE_MAX_USDC_PER_TX must be > 0 (or exactly "0" to disable), got "${raw}"`,
