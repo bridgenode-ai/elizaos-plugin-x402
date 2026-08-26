@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { SOLANA_MAINNET_CAIP2, USDC_MAINNET_ADDRESS } from "@x402/svm";
+
 import {
+	BRIDGENODE_PAYTO_DEFAULT,
 	createSignerFromPrivateKey,
+	createUsdcPaymentPolicy,
 	getX402Config,
 	parseMaxUsdcPerTx,
+	validateBaseUrl,
 } from "../src/x402.js";
 
 // Deterministic valid 64-byte base58 keypair (generated locally 08-23, not a live wallet)
@@ -51,14 +56,130 @@ describe("getX402Config", () => {
 			settingsWith({
 				SOLANA_PRIVATE_KEY: "abc",
 				SOLANA_RPC_URL: "https://custom.rpc",
-				BRIDGENODE_BASE_URL: "https://custom.base/",
+				BRIDGENODE_BASE_URL: "https://bridgenode.cc/custom",
 				BRIDGENODE_MAX_USDC_PER_TX: 2.5,
 			}),
 		);
 		expect(cfg.privateKey).toBe("abc");
 		expect(cfg.rpcUrl).toBe("https://custom.rpc");
-		expect(cfg.baseUrl).toBe("https://custom.base/");
+		expect(cfg.baseUrl).toBe("https://bridgenode.cc/custom");
 		expect(cfg.maxUsdcPerTx).toBe(2.5);
+	});
+
+	it("defaults payTo to the BridgeNode USDC wallet", () => {
+		const cfg = getX402Config(settingsWith({ SOLANA_PRIVATE_KEY: "abc" }));
+		expect(cfg.payTo).toBe(BRIDGENODE_PAYTO_DEFAULT);
+	});
+
+	it("reads BRIDGENODE_PAY_TO override", () => {
+		const cfg = getX402Config(
+			settingsWith({
+				SOLANA_PRIVATE_KEY: "abc",
+				BRIDGENODE_PAY_TO: "Recipient1111111111111111111111111111111111111",
+			}),
+		);
+		expect(cfg.payTo).toBe("Recipient1111111111111111111111111111111111111");
+	});
+
+	it("rejects a non-bridgenode.cc base URL at config load", () => {
+		expect(() =>
+			getX402Config(
+				settingsWith({
+					SOLANA_PRIVATE_KEY: "abc",
+					BRIDGENODE_BASE_URL: "https://evil.example/",
+				BRIDGENODE_MAX_USDC_PER_TX: 1,
+			}),
+			),
+		).toThrow(/must be exactly bridgenode\.cc/);
+	});
+});
+
+describe("validateBaseUrl (origin pin)", () => {
+	it("accepts the canonical HTTPS origin and paths", () => {
+		expect(validateBaseUrl("https://bridgenode.cc")).toBe("https://bridgenode.cc");
+		expect(validateBaseUrl("https://bridgenode.cc/v1")).toBe("https://bridgenode.cc/v1");
+		expect(validateBaseUrl("https://bridgenode.cc/v1/models")).toBe(
+			"https://bridgenode.cc/v1/models",
+		);
+	});
+
+	it("rejects http:// on the same host (scheme downgrade)", () => {
+		expect(() => validateBaseUrl("http://bridgenode.cc/v1")).toThrow(/must use HTTPS/);
+	});
+
+	it("rejects alternate hosts and subdomains", () => {
+		expect(() => validateBaseUrl("https://evil.example/")).toThrow(/exactly bridgenode\.cc/);
+		expect(() => validateBaseUrl("https://bridgenode.cc.evil.example/")).toThrow(
+			/exactly bridgenode\.cc/,
+		);
+		expect(() => validateBaseUrl("https://api.bridgenode.cc/")).toThrow(
+			/exactly bridgenode\.cc/,
+		);
+	});
+
+	it("rejects non-URL values", () => {
+		expect(() => validateBaseUrl("bridgenode.cc/v1")).toThrow(/valid absolute URL/);
+		expect(() => validateBaseUrl("")).toThrow(/valid absolute URL/);
+	});
+});
+
+describe("createUsdcPaymentPolicy (fail-closed payment policy)", () => {
+	const PAY_TO = BRIDGENODE_PAYTO_DEFAULT;
+	const USDT_MAINNET = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
+	const USDG_MAINNET = "b1eLJj9hTwg2QvS9m2S5sQhG2hF4sQhG2hF4sQhG2hF4";
+
+	const usdcReq = (overrides: Record<string, unknown> = {}) => ({
+		scheme: "exact",
+		network: SOLANA_MAINNET_CAIP2,
+		asset: USDC_MAINNET_ADDRESS,
+		amount: "1000000",
+		payTo: PAY_TO,
+		maxTimeoutSeconds: 60,
+		extra: {},
+		...overrides,
+	});
+
+	it("accepts a USDC mainnet requirement to the configured wallet", () => {
+		const policy = createUsdcPaymentPolicy(PAY_TO);
+		const req = usdcReq();
+		expect(policy(2, [req])).toEqual([req]);
+	});
+
+	it("rejects USDT (default @x402/svm asset)", () => {
+		const policy = createUsdcPaymentPolicy(PAY_TO);
+		expect(() => policy(2, [usdcReq({ asset: USDT_MAINNET })])).toThrow(
+			/fail-closed.*asset=/,
+		);
+	});
+
+	it("rejects USDG / PYUSD / CASH-style assets (any non-USDC mint)", () => {
+		const policy = createUsdcPaymentPolicy(PAY_TO);
+		for (const asset of [USDG_MAINNET, "CASH-other-mint", "PYUSD-other-mint"]) {
+			expect(() => policy(2, [usdcReq({ asset })])).toThrow(/fail-closed.*asset=/);
+		}
+	});
+
+	it("rejects a wrong recipient (payTo mismatch)", () => {
+		const policy = createUsdcPaymentPolicy(PAY_TO);
+		expect(() =>
+			policy(2, [
+				usdcReq({ payTo: "SomeOtherWallet11111111111111111111111111111111" }),
+			]),
+		).toThrow(/fail-closed.*payTo=/);
+	});
+
+	it("rejects a non-mainnet network", () => {
+		const policy = createUsdcPaymentPolicy(PAY_TO);
+		expect(() =>
+			policy(2, [usdcReq({ network: "solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY" })]),
+		).toThrow(/fail-closed.*network=/);
+	});
+
+	it("rejects a mixed offer containing any non-USDC asset (nothing signed)", () => {
+		const policy = createUsdcPaymentPolicy(PAY_TO);
+		expect(() => policy(2, [usdcReq(), usdcReq({ asset: USDT_MAINNET })])).toThrow(
+			/fail-closed/,
+		);
 	});
 });
 

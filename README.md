@@ -57,7 +57,8 @@ Or set the environment variables (see `.env.example`):
 |---|---|---|---|
 | `SOLANA_PRIVATE_KEY` | ✅ | — | Agent wallet private key (base58) |
 | `SOLANA_RPC_URL` | ❌ | mainnet-beta | Solana RPC endpoint |
-| `BRIDGENODE_BASE_URL` | ❌ | `https://bridgenode.cc/v1` | BridgeNode endpoint |
+| `BRIDGENODE_BASE_URL` | ❌ | `https://bridgenode.cc/v1` | BridgeNode endpoint (origin-pinned, see below) |
+| `BRIDGENODE_PAY_TO` | ❌ | BridgeNode USDC wallet | Payment recipient — only this address is ever paid |
 | `BRIDGENODE_MAX_USDC_PER_TX` | ❌ | `1` | Max USDC per transaction (safety cap) |
 | `BRIDGENODE_MODEL_SMALL` | ❌ | `deepseek-v4-flash` | Model for `TEXT_SMALL` |
 | `BRIDGENODE_MODEL_LARGE` | ❌ | `glm-5.2` | Model for `TEXT_LARGE` |
@@ -77,6 +78,26 @@ Validation is **fail-closed**: a blank, non-numeric (`one`), `NaN`/`Infinity`,
 or negative value is rejected with an error at config load — a configuration
 typo can never silently disable the payment limit. Only an explicit `0`
 disables it.
+
+## Payment safety pins (fail-closed)
+
+Beyond the spend cap, the plugin refuses to sign anything that is not exactly
+what BridgeNode advertises:
+
+- **Asset pin (USDC only)** — a `PaymentPolicy` validates every payment
+  requirement before signing: only Solana-mainnet USDC
+  (`EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`) is accepted. The other
+  `@x402/svm` mainnet default assets (USDT, USDG, PYUSD, CASH) are rejected
+  with an error — nothing is signed.
+- **Recipient pin** — payments are only ever made to `BRIDGENODE_PAY_TO`
+  (default: the BridgeNode USDC wallet). A challenge offering any other
+  recipient is rejected.
+- **Origin pin** — `BRIDGENODE_BASE_URL` must be HTTPS on exactly
+  `bridgenode.cc` (subdomains and other hosts are rejected). Validation runs
+  at config load, before any fetch is created.
+
+All three pins throw at the point of violation, so a malicious or
+misconfigured endpoint can never cause an unintended payment.
 
 ## Models
 
