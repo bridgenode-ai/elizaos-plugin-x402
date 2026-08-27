@@ -125,8 +125,11 @@ describe("validateBaseUrl (origin pin)", () => {
 
 describe("createUsdcPaymentPolicy (fail-closed payment policy)", () => {
 	const PAY_TO = BRIDGENODE_PAYTO_DEFAULT;
+	// Real @x402/svm 2.23.0 Solana-mainnet default assets (DEFAULT_ASSETS)
 	const USDT_MAINNET = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
-	const USDG_MAINNET = "b1eLJj9hTwg2QvS9m2S5sQhG2hF4sQhG2hF4sQhG2hF4";
+	const USDG_MAINNET = "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH";
+	const PYUSD_MAINNET = "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo";
+	const CASH_MAINNET = "CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH";
 
 	const usdcReq = (overrides: Record<string, unknown> = {}) => ({
 		scheme: "exact",
@@ -152,9 +155,13 @@ describe("createUsdcPaymentPolicy (fail-closed payment policy)", () => {
 		);
 	});
 
-	it("rejects USDG / PYUSD / CASH-style assets (any non-USDC mint)", () => {
+	it("rejects USDG / PYUSD / CASH (the other @x402/svm mainnet default assets)", () => {
 		const policy = createUsdcPaymentPolicy(PAY_TO);
-		for (const asset of [USDG_MAINNET, "CASH-other-mint", "PYUSD-other-mint"]) {
+		for (const asset of [
+			USDG_MAINNET,
+			PYUSD_MAINNET,
+			CASH_MAINNET,
+		]) {
 			expect(() => policy(2, [usdcReq({ asset })])).toThrow(/fail-closed.*asset=/);
 		}
 	});

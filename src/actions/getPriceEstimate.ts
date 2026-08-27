@@ -6,6 +6,8 @@ import type {
 	State,
 } from "@elizaos/core";
 
+import { validateBaseUrl } from "../x402.js";
+
 /**
  * Live pricing from https://bridgenode.cc/v1/models — no hardcoded rates
  * (DINAMIŠKUMO PRINCIPAS). Models with prompt+completion == 0 are free.
@@ -23,13 +25,17 @@ export const getPriceEstimate: Action = {
 		_options: unknown,
 		callback?: (response: Content) => Promise<unknown>,
 	) => {
-		try {
 		const baseSetting = runtime.getSetting("BRIDGENODE_BASE_URL");
-			const baseUrl = (
-				typeof baseSetting === "string"
-					? baseSetting
-					: process.env.BRIDGENODE_BASE_URL ?? "https://bridgenode.cc/v1"
-			).replace(/\/+$/, "");
+		const rawBaseUrl =
+			typeof baseSetting === "string"
+				? baseSetting
+				: process.env.BRIDGENODE_BASE_URL ?? "https://bridgenode.cc/v1";
+		// Origin pin on the action path too (S3, fail-closed): an invalid
+		// BRIDGENODE_BASE_URL throws a typed error here instead of degrading
+		// into narrated prose — a hostile/spoofed origin must not control the
+		// text the agent sees.
+		const baseUrl = validateBaseUrl(rawBaseUrl).replace(/\/+$/, "");
+		try {
 			const res = await fetch(`${baseUrl}/models`, {
 				headers: { Accept: "application/json" },
 			});

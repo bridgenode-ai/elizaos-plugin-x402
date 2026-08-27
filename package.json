@@ -1,6 +1,6 @@
 {
   "name": "@bridgenode/plugin-x402",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "ElizaOS plugin for pay-per-request LLM inference via x402 on Solana USDC - no API keys, no accounts",
   "type": "module",
   "main": "dist/index.js",
@@ -52,7 +52,7 @@
     "bs58": "^6.0.0"
   },
   "peerDependencies": {
-    "@elizaos/core": "^1.0.0"
+    "@elizaos/core": "^1.0.0 || ^2.0.0"
   },
   "devDependencies": {
     "@elizaos/core": "^1.7.2",
