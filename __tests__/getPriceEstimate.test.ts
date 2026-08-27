@@ -59,8 +59,8 @@ describe("getPriceEstimate", () => {
 		expect(lastCallbackText).toContain("/M completion");
 	});
 
-	it("calls the configured base URL (env override)", async () => {
-		process.env.BRIDGENODE_BASE_URL = "https://custom.cc/v1/";
+	it("calls the configured base URL (env override, path kept)", async () => {
+		process.env.BRIDGENODE_BASE_URL = "https://bridgenode.cc/v1/";
 		await getPriceEstimate.handler(
 			runtime,
 			{} as never,
@@ -72,7 +72,42 @@ describe("getPriceEstimate", () => {
 		);
 		const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
 		const calledUrl = String(fetchMock.mock.calls[0]?.[0]);
-		expect(calledUrl).toBe("https://custom.cc/v1/models");
+		expect(calledUrl).toBe("https://bridgenode.cc/v1/models");
+		delete process.env.BRIDGENODE_BASE_URL;
+	});
+
+	it("rejects a non-HTTPS base URL fail-closed (origin pin on the action path)", async () => {
+		process.env.BRIDGENODE_BASE_URL = "http://bridgenode.cc/v1";
+		await expect(
+			getPriceEstimate.handler(
+				runtime,
+				{} as never,
+				undefined,
+				undefined,
+				async (content) => {
+					lastCallbackText = content.text ?? "";
+				},
+			),
+		).rejects.toThrow(/HTTPS/);
+		// Fail-closed: the hostile origin must never reach the callback text.
+		expect(lastCallbackText).toBe("");
+		delete process.env.BRIDGENODE_BASE_URL;
+	});
+
+	it("rejects an alternate host / subdomain fail-closed (origin pin)", async () => {
+		process.env.BRIDGENODE_BASE_URL = "https://bridgenode.cc.evil.com/v1";
+		await expect(
+			getPriceEstimate.handler(
+				runtime,
+				{} as never,
+				undefined,
+				undefined,
+				async (content) => {
+					lastCallbackText = content.text ?? "";
+				},
+			),
+		).rejects.toThrow(/host must be exactly/);
+		expect(lastCallbackText).toBe("");
 		delete process.env.BRIDGENODE_BASE_URL;
 	});
 
